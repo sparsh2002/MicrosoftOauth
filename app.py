@@ -15,7 +15,8 @@ PORT = os.getenv('PORT')
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
 TENANT_ID = os.getenv('TENANT_ID')
-AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
+# AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
+AUTHORITY = "https://login.microsoftonline.com/common"
 REDIRECT_URI = "http://localhost:5001/callback"
 SCOPES = ['User.Read' , 'Mail.Read' ,'Mail.ReadWrite'] 
 
@@ -30,7 +31,11 @@ def home():
 
 @app.route("/login")
 def login():
-    auth_url = msal_app.get_authorization_request_url(SCOPES, redirect_uri=REDIRECT_URI)
+    auth_url = msal_app.get_authorization_request_url(
+        SCOPES, 
+        redirect_uri=REDIRECT_URI, 
+        prompt='select_account'
+        )
     return redirect(auth_url)
 
 @app.route("/callback")
@@ -57,6 +62,7 @@ def profile():
 
     access_token = session["user"]["access_token"]
     refresh_token = session["user"]["refresh_token"]
+    print(access_token)
     print(refresh_token)
     headers = {"Authorization": f"Bearer {access_token}"}
     response = requests.get("https://graph.microsoft.com/v1.0/me", headers=headers)
@@ -87,6 +93,23 @@ def refresh_access_token():
 def logout():
     session.clear()
     return redirect(url_for("home"))
+
+
+@app.route('/fetch_emails')
+def get_messages():
+    # if "user" not in session:
+    #     return redirect(url_for("login"))
+
+    # access_token = session["user"]["access_token"]
+    access_token = request.get_json()['access_token']
+    # refresh_token = session["user"]["refresh_token"]
+    # print(refresh_token)
+    headers = {"Authorization": f"Bearer {access_token}"}
+    response = requests.get(f"https://graph.microsoft.com/v1.0/me/messages?$top={request.args.get('top')}", headers=headers)
+    print(response)
+    if response.status_code == 200:
+        return response.json()
+    return "Failed to fetch mails", response.status_code
 
 if __name__ == "__main__":
     app.run(port=5001 , debug=True)
